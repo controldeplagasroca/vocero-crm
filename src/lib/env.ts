@@ -40,6 +40,15 @@ const envSchema = z.object({
   // estado "no configurado" en vez de fallar el build o el resto de la app.
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GOOGLE_CALENDAR_ID: z.string().optional(),
+  // Recordatorios de servicio: roca-ops-backend es quien sabe qué cliente
+  // está por vencer/vencido (next_treatment_date); Vocero solo lo consulta
+  // y manda el WhatsApp. REMINDERS_API_SECRET viaja hacia roca-ops-backend;
+  // REMINDERS_CRON_SECRET es el que la tarea programada del VPS manda hacia
+  // Vocero para disparar el envío automático — son direcciones distintas,
+  // no reutilizar uno por el otro.
+  ROCA_OPS_BASE_URL: z.string().url().optional(),
+  REMINDERS_API_SECRET: z.string().optional(),
+  REMINDERS_CRON_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -102,4 +111,10 @@ export function isAiConfigured(): boolean {
 export function isCalendarConfigured(): boolean {
   const env = getEnv();
   return Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON && env.GOOGLE_CALENDAR_ID);
+}
+
+/** true si Recordatorios puede consultar roca-ops-backend. */
+export function isRemindersConfigured(): boolean {
+  const env = getEnv();
+  return Boolean(env.ROCA_OPS_BASE_URL && env.REMINDERS_API_SECRET);
 }

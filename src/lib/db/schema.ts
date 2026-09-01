@@ -575,3 +575,25 @@ export const agentTestCase = pgTable(
   },
   (t) => [index("test_case_run_idx").on(t.runId)]
 );
+
+/**
+ * Recordatorios de servicio enviados a clientes de roca-ops-backend
+ * (identificados por su `client_id` allá, NO por `contact.id` aquí — un
+ * mismo cliente puede o no tener ya un contacto en Vocero). Sirve solo para
+ * no reenviar el mismo recordatorio todos los días mientras el cliente siga
+ * vencido/por vencer — no es la fuente de verdad de qué está pendiente, esa
+ * vive en roca-ops-backend.
+ */
+export const reminderLog = pgTable(
+  "reminder_log",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    rocaClientId: text("roca_client_id").notNull(),
+    sentAt: timestamp("sent_at").notNull().defaultNow(),
+    sentBy: text("sent_by", { enum: ["manual", "auto"] }).notNull(),
+  },
+  (t) => [index("reminder_log_client_idx").on(t.organizationId, t.rocaClientId, t.sentAt)]
+);

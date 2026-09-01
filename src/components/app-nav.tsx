@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BellRing,
   CalendarClock,
   FlaskConical,
   Inbox,
@@ -27,6 +28,7 @@ const NAV = [
   { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/schedule", label: "Agendamiento", icon: CalendarClock },
+  { href: "/reminders", label: "Recordatorios", icon: BellRing },
   { href: "/contacts", label: "Contactos", icon: Users },
   { href: "/agent", label: "Agente", icon: Sparkles },
   { href: "/lab", label: "Laboratorio", icon: FlaskConical },
