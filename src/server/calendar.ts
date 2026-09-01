@@ -116,3 +116,34 @@ export async function deleteEvent(id: string): Promise<void> {
   const calendar = getClient();
   await calendar.events.delete({ calendarId: calendarId(), eventId: id });
 }
+
+/**
+ * Reagendar: mueve una cita existente a un nuevo horario (`events.patch`) en
+ * vez de borrarla y crear una nueva — conserva el mismo id de evento.
+ * Funciona tanto sobre citas creadas aquí como sobre las que agendó Nea: es
+ * el mismo calendario compartido, mover cualquier evento en él es una
+ * operación legítima de agenda, no algo exclusivo de "lo que creó el CRM".
+ */
+export async function rescheduleEvent(
+  id: string,
+  input: { start: Date; end: Date }
+): Promise<CalendarEvent> {
+  const calendar = getClient();
+  const res = await calendar.events.patch({
+    calendarId: calendarId(),
+    eventId: id,
+    requestBody: {
+      start: { dateTime: input.start.toISOString() },
+      end: { dateTime: input.end.toISOString() },
+    },
+  });
+  const ev = res.data;
+  return {
+    id: ev.id!,
+    title: ev.summary ?? "(sin título)",
+    description: ev.description ?? null,
+    start: ev.start!.dateTime!,
+    end: ev.end!.dateTime!,
+    createdByNea: ev.extendedProperties?.private?.[SOURCE_KEY] !== SOURCE_VALUE,
+  };
+}

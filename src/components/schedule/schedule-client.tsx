@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NewAppointmentDialog } from "@/components/schedule/new-appointment-dialog";
+import { RescheduleDialog } from "@/components/schedule/reschedule-dialog";
 
 type EventDto = {
   id: string;
@@ -39,6 +40,7 @@ export function ScheduleClient() {
   const [error, setError] = useState<string | null>(null);
   const [notConfigured, setNotConfigured] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [rescheduling, setRescheduling] = useState<EventDto | null>(null);
 
   async function refetch() {
     setError(null);
@@ -146,14 +148,24 @@ export function ScheduleClient() {
                           {ev.createdByNea ? "Agendada por Nea" : "Agendada manual"}
                         </Badge>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label="Cancelar cita"
-                        onClick={() => void cancelar(ev.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Reagendar cita"
+                          onClick={() => setRescheduling(ev)}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Cancelar cita"
+                          onClick={() => void cancelar(ev.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -168,6 +180,17 @@ export function ScheduleClient() {
           onClose={() => setShowNew(false)}
           onCreated={() => {
             setShowNew(false);
+            void refetch();
+          }}
+        />
+      )}
+
+      {rescheduling && (
+        <RescheduleDialog
+          event={rescheduling}
+          onClose={() => setRescheduling(null)}
+          onRescheduled={() => {
+            setRescheduling(null);
             void refetch();
           }}
         />
