@@ -35,6 +35,11 @@ const envSchema = z.object({
   // 008: volumen local de adjuntos (constitución II: sin S3/R2).
   MEDIA_DIR: z.string().default("./.dev-media"),
   NODE_ENV: z.string().default("development"),
+  // Agendamiento: mismo Google Calendar + cuenta de servicio que ya usa Nea
+  // (nea-agent/app/gcal.py) — sin esto, el módulo de Agendamiento muestra un
+  // estado "no configurado" en vez de fallar el build o el resto de la app.
+  GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  GOOGLE_CALENDAR_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -91,4 +96,10 @@ export function isMockEnabled(): boolean {
 export function isAiConfigured(): boolean {
   const token = process.env.OPENROUTER_API_TOKEN;
   return typeof token === "string" && token.trim().length > 0;
+}
+
+/** true si el Agendamiento tiene credenciales de Google Calendar. */
+export function isCalendarConfigured(): boolean {
+  const env = getEnv();
+  return Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON && env.GOOGLE_CALENDAR_ID);
 }
