@@ -35,6 +35,18 @@ export type BrandingFavicon = {
   version: number;
 };
 
+/**
+ * Logo subido para el lateral/encabezado. Mismo formato que `BrandingFavicon`
+ * (tipo + versión, el binario vive en el volumen de medios) — es un activo
+ * blanco-etiqueta separado del icono de la pestaña porque una agencia puede
+ * querer el logo completo en el lateral sin forzar ese mismo archivo (a
+ * veces no cuadrado) como favicon de 16-32px.
+ */
+export type BrandingLogo = {
+  mime: string;
+  version: number;
+};
+
 export type Branding = {
   name: string;
   accent: string; // hex del acento base elegido
@@ -42,6 +54,8 @@ export type Branding = {
   currency: Currency;
   /** `null` = se dibuja con la inicial sobre el acento (ver `lib/favicon`). */
   favicon: BrandingFavicon | null;
+  /** `null` = el lateral usa la inicial sobre el acento, igual que el favicon. */
+  logo: BrandingLogo | null;
 };
 
 export const DEFAULT_BRANDING: Branding = {
@@ -49,6 +63,7 @@ export const DEFAULT_BRANDING: Branding = {
   accent: "#3f5972",
   currency: DEFAULT_CURRENCY,
   favicon: null,
+  logo: null,
 };
 
 /** Presets del handoff (valores exactos). */
@@ -215,5 +230,10 @@ export function normalizeBranding(input: Partial<Branding> | null): Branding {
     f && typeof f.mime === "string" && Number.isFinite(f.version)
       ? { mime: f.mime, version: Math.max(1, Math.floor(f.version)) }
       : null;
-  return { name, accent, currency, favicon };
+  const l = input?.logo;
+  const logo =
+    l && typeof l.mime === "string" && Number.isFinite(l.version)
+      ? { mime: l.mime, version: Math.max(1, Math.floor(l.version)) }
+      : null;
+  return { name, accent, currency, favicon, logo };
 }

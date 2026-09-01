@@ -27,13 +27,14 @@ export const PUT = withAuth(async (session, req: Request) => {
   }
   const body = await parseBody(req, putSchema);
   if (!body.ok) return body.response;
-  // El icono se conserva: este formulario es de nombre, color y moneda, y se
-  // sube y se quita por su propia ruta. Sin esto, guardar el nombre borraría
-  // el logo sin que nadie lo pidiera.
+  // El icono y el logo se conservan: este formulario es de nombre, color y
+  // moneda, y ambos se suben y se quitan por su propia ruta. Sin esto,
+  // guardar el nombre los borraría sin que nadie lo pidiera.
   const actual = await getBranding(session.organizationId);
   await saveBranding(session.organizationId, {
     ...body.data,
     favicon: actual.favicon,
+    logo: actual.logo,
   });
   return Response.json({ ok: true });
 });

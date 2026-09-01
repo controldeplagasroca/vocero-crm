@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  CalendarClock,
   FlaskConical,
   Inbox,
   Kanban,
@@ -14,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { Branding } from "@/lib/branding";
+import { logoHref } from "@/lib/logo";
 import type { ThemePreference } from "@/lib/theme";
 import { cn, initials } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
@@ -24,6 +26,7 @@ import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
 const NAV = [
   { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
+  { href: "/schedule", label: "Agendamiento", icon: CalendarClock },
   { href: "/contacts", label: "Contactos", icon: Users },
   { href: "/agent", label: "Agente", icon: Sparkles },
   { href: "/lab", label: "Laboratorio", icon: FlaskConical },
@@ -99,12 +102,21 @@ export function AppNav({
         >
           <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </button>
-        <span
-          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-brand text-[15px] font-bold text-brand-fg"
-          aria-hidden
-        >
-          {branding.name.charAt(0).toUpperCase()}
-        </span>
+        {logoHref(branding) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoHref(branding)!}
+            alt={branding.name}
+            className="h-[30px] w-[30px] shrink-0 rounded-sm object-contain"
+          />
+        ) : (
+          <span
+            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-brand text-[15px] font-bold text-brand-fg"
+            aria-hidden
+          >
+            {branding.name.charAt(0).toUpperCase()}
+          </span>
+        )}
         <span className="min-w-0">
           <span className="block truncate text-[16px] font-[650] leading-tight tracking-tight">
             {branding.name}

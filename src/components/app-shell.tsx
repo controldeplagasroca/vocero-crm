@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import type { Branding } from "@/lib/branding";
+import { logoHref } from "@/lib/logo";
 import type { ThemePreference } from "@/lib/theme";
 import { AppNav } from "@/components/app-nav";
 
@@ -84,12 +85,21 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" strokeWidth={1.8} />
           </button>
-          <span
-            className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-sm bg-brand text-[13px] font-bold text-brand-fg"
-            aria-hidden
-          >
-            {branding.name.charAt(0).toUpperCase()}
-          </span>
+          {logoHref(branding) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoHref(branding)!}
+              alt={branding.name}
+              className="h-[26px] w-[26px] shrink-0 rounded-sm object-contain"
+            />
+          ) : (
+            <span
+              className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-sm bg-brand text-[13px] font-bold text-brand-fg"
+              aria-hidden
+            >
+              {branding.name.charAt(0).toUpperCase()}
+            </span>
+          )}
           <span className="truncate text-[15px] font-[650] tracking-tight">
             {branding.name}
           </span>
