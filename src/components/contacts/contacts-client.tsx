@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   ArchiveRestore,
+  MapPin,
   MessageSquareText,
   Search,
   Send,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import type { ContactDto } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
+import { DIRECCION_FICHA_KEY } from "@/lib/ficha";
 import { ContactAvatar } from "@/components/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -191,6 +193,13 @@ export function ContactsClient() {
                     {formatPhone(c.phone)}
                     {c.notes ? ` · ${c.notes.slice(0, 60)}` : ""}
                   </p>
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    {typeof c.ficha?.[DIRECCION_FICHA_KEY] === "string" &&
+                    c.ficha[DIRECCION_FICHA_KEY]
+                      ? String(c.ficha[DIRECCION_FICHA_KEY])
+                      : "Sin dirección"}
+                  </p>
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <Button
@@ -300,10 +309,18 @@ function EditDialog({
 }: {
   contact: ContactDto;
   onClose: () => void;
-  onSave: (patch: { name: string; notes: string }) => Promise<void>;
+  onSave: (patch: {
+    name: string;
+    notes: string;
+    ficha?: Record<string, string | null>;
+  }) => Promise<void>;
 }) {
   const [name, setName] = useState(contact.name);
   const [notes, setNotes] = useState(contact.notes ?? "");
+  const direccionActual = contact.ficha?.[DIRECCION_FICHA_KEY];
+  const [address, setAddress] = useState(
+    typeof direccionActual === "string" ? direccionActual : ""
+  );
 
   return (
     <div
@@ -327,6 +344,17 @@ function EditDialog({
             />
           </div>
           <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="edit-address">
+              Dirección
+            </label>
+            <Input
+              id="edit-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Se completa sola si agenda una cita con dirección"
+            />
+          </div>
+          <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-notes">
               Notas
             </label>
@@ -344,7 +372,13 @@ function EditDialog({
           </Button>
           <Button
             disabled={!name.trim()}
-            onClick={() => void onSave({ name: name.trim(), notes })}
+            onClick={() =>
+              void onSave({
+                name: name.trim(),
+                notes,
+                ficha: { [DIRECCION_FICHA_KEY]: address.trim() || null },
+              })
+            }
           >
             Guardar
           </Button>

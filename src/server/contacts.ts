@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { effectiveSource } from "@/server/contact-source";
+import { upsertFicha } from "@/server/bot/ficha";
+import { DIRECCION_FICHA_KEY } from "@/lib/ficha";
 import type { FichaDto, PriorityValue } from "@/lib/types";
 
 export function serializeContact(
@@ -41,6 +43,29 @@ export async function getContactById(
     )
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Completa la dirección del contacto a partir de una cita agendada —
+ * ÚNICAMENTE si el contacto todavía no tiene una. Nunca pisa una dirección
+ * que ya se sabía (pudo corregirse a mano y ser más precisa que la de una
+ * cita puntual). No falla el agendado si el contacto no existe o la
+ * organización no coincide: es un beneficio adicional, no un requisito.
+ */
+export async function backfillContactAddress(
+  organizationId: string,
+  contactId: string,
+  address: string
+): Promise<void> {
+  const contact = await getContactById(organizationId, contactId);
+  if (!contact) return;
+  const ficha = (contact.ficha as FichaDto | null) ?? {};
+  if (ficha[DIRECCION_FICHA_KEY]) return;
+  await upsertFicha({
+    organizationId,
+    contactId,
+    ficha: { [DIRECCION_FICHA_KEY]: address },
+  });
 }
 
 /** Etapa actual del lead del contacto (si existe). */

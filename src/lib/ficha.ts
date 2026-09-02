@@ -1,6 +1,14 @@
 import type { FichaDto, FichaValue } from "./types";
 
 /**
+ * Clave canónica de la ficha para la dirección del cliente — primer campo
+ * de la ficha con UI dedicada (fuera de la lista genérica), porque el
+ * Agendamiento la completa sola al agendar una cita con dirección. Ver
+ * `server/contacts.ts` → `backfillContactAddress`.
+ */
+export const DIRECCION_FICHA_KEY = "direccion";
+
+/**
  * Presentación de la ficha del lead.
  *
  * Las claves las inventa quien califica —un bot, o el dueño escribiendo—, así

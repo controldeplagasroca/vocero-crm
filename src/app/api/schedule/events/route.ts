@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { isCalendarConfigured } from "@/lib/env";
 import { createEvent, listUpcomingEvents } from "@/server/calendar";
+import { backfillContactAddress } from "@/server/contacts";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ function defaultRange() {
   return { timeMin, timeMax };
 }
 
-export const GET = withAuth(async () => {
+export const GET = withAuth(async (_session, req: Request) => {
   if (!isCalendarConfigured()) {
     return apiError(
       503,
@@ -24,7 +25,16 @@ export const GET = withAuth(async () => {
       "El Agendamiento no tiene configurado Google Calendar todavía"
     );
   }
-  const { timeMin, timeMax } = defaultRange();
+  const url = new URL(req.url);
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  // Rango explícito para las vistas de semana/mes; sin parámetros, el rango
+  // por defecto (compatibilidad con quien ya llamaba este endpoint así).
+  const { timeMin, timeMax } =
+    from && to ? { timeMin: new Date(from), timeMax: new Date(to) } : defaultRange();
+  if (Number.isNaN(timeMin.getTime()) || Number.isNaN(timeMax.getTime())) {
+    return apiError(422, "invalid_range", "from/to deben ser fechas ISO válidas");
+  }
   const events = await listUpcomingEvents({ timeMin, timeMax });
   return Response.json({ events });
 });
@@ -34,9 +44,12 @@ const postSchema = z.object({
   description: z.string().trim().max(2000).optional(),
   start: z.string().datetime(),
   end: z.string().datetime(),
+  address: z.string().trim().max(300).optional(),
+  contactId: z.string().min(1).optional(),
+  technicianIds: z.array(z.string().min(1)).max(10).optional(),
 });
 
-export const POST = withAuth(async (_session, req: Request) => {
+export const POST = withAuth(async (session, req: Request) => {
   if (!isCalendarConfigured()) {
     return apiError(
       503,
@@ -58,6 +71,17 @@ export const POST = withAuth(async (_session, req: Request) => {
     description: body.data.description,
     start,
     end,
+    address: body.data.address,
+    contactId: body.data.contactId,
+    technicianIds: body.data.technicianIds,
   });
+
+  // Si la cita trae cliente + dirección, se aprovecha para completar su
+  // ficha — pero solo si todavía no tiene una (ver backfillContactAddress):
+  // "se va obteniendo si es que agenda", nunca pisa lo que ya se sabía.
+  if (body.data.contactId && body.data.address) {
+    await backfillContactAddress(session.organizationId, body.data.contactId, body.data.address);
+  }
+
   return Response.json({ event });
 });

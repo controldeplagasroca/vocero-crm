@@ -597,3 +597,25 @@ export const reminderLog = pgTable(
   },
   (t) => [index("reminder_log_client_idx").on(t.organizationId, t.rocaClientId, t.sentAt)]
 );
+
+/**
+ * Directorio de técnicos/operadores de campo por instancia, para asignarlos
+ * a citas del Agendamiento (`/schedule`). A propósito NO vive en Google
+ * Calendar (a diferencia de las citas mismas, ver `server/calendar.ts`): es
+ * un catálogo simple ("quiénes son mis técnicos"), no un segundo origen de
+ * verdad de horarios — el evento solo GUARDA el id del técnico asignado.
+ */
+export const technician = pgTable(
+  "technician",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    phone: text("phone"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("technician_org_active_idx").on(t.organizationId, t.active)]
+);

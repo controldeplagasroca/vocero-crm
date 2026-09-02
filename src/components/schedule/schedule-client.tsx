@@ -1,50 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { NewAppointmentDialog } from "@/components/schedule/new-appointment-dialog";
 import { RescheduleDialog } from "@/components/schedule/reschedule-dialog";
+import { EventDetailDialog, type EventDto } from "@/components/schedule/event-detail-dialog";
+import { WeekView } from "@/components/schedule/week-view";
+import { MonthView } from "@/components/schedule/month-view";
+import {
+  addDays,
+  dayMonthLabel,
+  monthYearLabel,
+  weekRange,
+  monthRange,
+  startOfWeek,
+} from "@/lib/calendar-utils";
+import { cn } from "@/lib/utils";
 
-type EventDto = {
-  id: string;
-  title: string;
-  description: string | null;
-  start: string;
-  end: string;
-  createdByNea: boolean;
-};
-
-const DAY_LABEL = new Intl.DateTimeFormat("es-MX", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-}).format;
-const TIME_LABEL = new Intl.DateTimeFormat("es-MX", {
-  hour: "numeric",
-  minute: "2-digit",
-}).format;
-
-function groupByDay(events: EventDto[]): [string, EventDto[]][] {
-  const groups = new Map<string, EventDto[]>();
-  for (const ev of events) {
-    const key = new Date(ev.start).toDateString();
-    groups.set(key, [...(groups.get(key) ?? []), ev]);
-  }
-  return [...groups.entries()];
-}
+type ViewMode = "week" | "month";
 
 export function ScheduleClient() {
+  const [view, setView] = useState<ViewMode>("week");
+  const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<EventDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notConfigured, setNotConfigured] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [rescheduling, setRescheduling] = useState<EventDto | null>(null);
+  const [viewing, setViewing] = useState<EventDto | null>(null);
 
   async function refetch() {
     setError(null);
-    const res = await fetch("/api/schedule/events").catch(() => null);
+    const { from, to } = view === "week" ? weekRange(anchor) : monthRange(anchor);
+    const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+    const res = await fetch(`/api/schedule/events?${params}`).catch(() => null);
     if (!res) {
       setError("No se pudo conectar con el servidor.");
       return;
@@ -63,7 +53,8 @@ export function ScheduleClient() {
 
   useEffect(() => {
     void refetch();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, anchor]);
 
   async function cancelar(id: string) {
     if (!confirm("¿Cancelar esta cita? Se borra del calendario compartido con Nea.")) return;
@@ -74,7 +65,16 @@ export function ScheduleClient() {
       setError("No se pudo cancelar la cita.");
       return;
     }
+    setViewing(null);
     void refetch();
+  }
+
+  function moveAnchor(dir: 1 | -1) {
+    setAnchor((prev) => (view === "week" ? addDays(prev, dir * 7) : addMonths(prev, dir)));
+  }
+
+  function addMonths(d: Date, n: number): Date {
+    return new Date(d.getFullYear(), d.getMonth() + n, 1);
   }
 
   if (notConfigured) {
@@ -91,9 +91,14 @@ export function ScheduleClient() {
     );
   }
 
+  const rangeLabel =
+    view === "week"
+      ? `${dayMonthLabel(startOfWeek(anchor))} – ${dayMonthLabel(addDays(startOfWeek(anchor), 6))}`
+      : monthYearLabel(anchor);
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-6 py-4">
         <div>
           <h1 className="text-lg font-semibold">Agendamiento</h1>
           <p className="text-xs text-text-3">
@@ -105,73 +110,69 @@ export function ScheduleClient() {
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        {error && <p className="mb-4 text-sm text-danger-text">{error}</p>}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-6 py-2.5">
+        <div className="flex items-center gap-1">
+          <div className="flex rounded-md border p-0.5">
+            {(["week", "month"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={cn(
+                  "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                  view === v ? "bg-brand text-brand-fg" : "text-text-3 hover:text-foreground"
+                )}
+              >
+                {v === "week" ? "Semana" : "Mes"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        {events === null && !error && (
-          <p className="text-sm text-text-3">Cargando…</p>
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => moveAnchor(-1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="min-w-[9rem] text-center text-sm font-medium capitalize">
+            {rangeLabel}
+          </span>
+          <Button variant="ghost" size="icon" aria-label="Siguiente" onClick={() => moveAnchor(1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setAnchor(new Date())}>
+            Hoy
+          </Button>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1">
+        {error && <p className="p-4 text-sm text-danger-text">{error}</p>}
+
+        {events === null && !error && <p className="p-4 text-sm text-text-3">Cargando…</p>}
 
         {events && events.length === 0 && (
-          <p className="text-sm text-text-3">
-            No hay citas en los próximos 60 días.
+          <p className="p-4 text-sm text-text-3">
+            No hay citas en este {view === "week" ? "semana" : "mes"}.
           </p>
         )}
 
-        {events && events.length > 0 && (
-          <div className="space-y-6">
-            {groupByDay(events).map(([day, dayEvents]) => (
-              <div key={day}>
-                <h2 className="mb-2 text-sm font-semibold capitalize">
-                  {DAY_LABEL(new Date(day))}
-                </h2>
-                <div className="space-y-2">
-                  {dayEvents.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="flex items-start justify-between gap-3 rounded-md border bg-card px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">
-                          {TIME_LABEL(new Date(ev.start))} –{" "}
-                          {TIME_LABEL(new Date(ev.end))} · {ev.title}
-                        </p>
-                        {ev.description && (
-                          <p className="mt-0.5 text-xs text-text-3">
-                            {ev.description}
-                          </p>
-                        )}
-                        <Badge
-                          className="mt-1.5"
-                          variant={ev.createdByNea ? "default" : "secondary"}
-                        >
-                          {ev.createdByNea ? "Agendada por Nea" : "Agendada manual"}
-                        </Badge>
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label="Reagendar cita"
-                          onClick={() => setRescheduling(ev)}
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label="Cancelar cita"
-                          onClick={() => void cancelar(ev.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+        {events && events.length > 0 && view === "week" && (
+          <WeekView
+            weekStart={startOfWeek(anchor)}
+            events={events}
+            onSelectEvent={setViewing}
+          />
+        )}
+
+        {events && events.length > 0 && view === "month" && (
+          <MonthView
+            monthAnchor={anchor}
+            events={events}
+            onSelectEvent={setViewing}
+            onSelectDay={(day) => {
+              setView("week");
+              setAnchor(day);
+            }}
+          />
         )}
       </div>
 
@@ -181,6 +182,22 @@ export function ScheduleClient() {
           onCreated={() => {
             setShowNew(false);
             void refetch();
+          }}
+        />
+      )}
+
+      {viewing && (
+        <EventDetailDialog
+          event={viewing}
+          onClose={() => setViewing(null)}
+          onReschedule={() => {
+            setRescheduling(viewing);
+            setViewing(null);
+          }}
+          onCancel={() => void cancelar(viewing.id)}
+          onAssigned={(updated) => {
+            setViewing(updated);
+            setEvents((prev) => prev?.map((e) => (e.id === updated.id ? updated : e)) ?? prev);
           }}
         />
       )}

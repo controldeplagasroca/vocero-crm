@@ -18,6 +18,12 @@ export type CalendarEvent = {
   start: string; // ISO 8601
   end: string; // ISO 8601
   createdByNea: boolean;
+  /** Dirección del servicio — visible para el/los técnico(s) asignados. */
+  address: string | null;
+  /** Contacto de Vocero vinculado a esta cita, si se ligó al agendarla. */
+  contactId: string | null;
+  /** Técnicos asignados (ids de la tabla `technician`), 0 o más. */
+  technicianIds: string[];
 };
 
 class CalendarNotConfiguredError extends Error {
@@ -56,6 +62,23 @@ function calendarId(): string {
  */
 const SOURCE_KEY = "source";
 const SOURCE_VALUE = "vocero-crm";
+/** Ids de técnicos asignados, guardados como CSV — extendedProperties solo
+ * acepta valores string, y un id de nanoid nunca trae comas. */
+const TECHNICIAN_IDS_KEY = "technicianIds";
+const CONTACT_ID_KEY = "contactId";
+const ADDRESS_KEY = "address";
+
+function readPrivateProps(
+  ev: import("googleapis").calendar_v3.Schema$Event
+): { address: string | null; contactId: string | null; technicianIds: string[] } {
+  const props = ev.extendedProperties?.private ?? {};
+  const rawTechnicianIds = props[TECHNICIAN_IDS_KEY];
+  return {
+    address: props[ADDRESS_KEY] ?? null,
+    contactId: props[CONTACT_ID_KEY] ?? null,
+    technicianIds: rawTechnicianIds ? rawTechnicianIds.split(",").filter(Boolean) : [],
+  };
+}
 
 export { CalendarNotConfiguredError };
 
@@ -81,6 +104,7 @@ export async function listUpcomingEvents(opts: {
       start: ev.start!.dateTime!,
       end: ev.end!.dateTime!,
       createdByNea: ev.extendedProperties?.private?.[SOURCE_KEY] !== SOURCE_VALUE,
+      ...readPrivateProps(ev),
     }));
 }
 
@@ -89,8 +113,17 @@ export async function createEvent(input: {
   description?: string;
   start: Date;
   end: Date;
+  address?: string;
+  contactId?: string;
+  technicianIds?: string[];
 }): Promise<CalendarEvent> {
   const calendar = getClient();
+  const privateProps: Record<string, string> = { [SOURCE_KEY]: SOURCE_VALUE };
+  if (input.address) privateProps[ADDRESS_KEY] = input.address;
+  if (input.contactId) privateProps[CONTACT_ID_KEY] = input.contactId;
+  if (input.technicianIds?.length) {
+    privateProps[TECHNICIAN_IDS_KEY] = input.technicianIds.join(",");
+  }
   const res = await calendar.events.insert({
     calendarId: calendarId(),
     requestBody: {
@@ -98,7 +131,7 @@ export async function createEvent(input: {
       description: input.description,
       start: { dateTime: input.start.toISOString() },
       end: { dateTime: input.end.toISOString() },
-      extendedProperties: { private: { [SOURCE_KEY]: SOURCE_VALUE } },
+      extendedProperties: { private: privateProps },
     },
   });
   const ev = res.data;
@@ -109,6 +142,9 @@ export async function createEvent(input: {
     start: ev.start!.dateTime!,
     end: ev.end!.dateTime!,
     createdByNea: false,
+    address: input.address ?? null,
+    contactId: input.contactId ?? null,
+    technicianIds: input.technicianIds ?? [],
   };
 }
 
@@ -145,5 +181,40 @@ export async function rescheduleEvent(
     start: ev.start!.dateTime!,
     end: ev.end!.dateTime!,
     createdByNea: ev.extendedProperties?.private?.[SOURCE_KEY] !== SOURCE_VALUE,
+    ...readPrivateProps(ev),
+  };
+}
+
+/**
+ * Asignar/desasignar técnico(s) a una cita ya existente, sin tocar su
+ * horario — un `events.patch` separado de `rescheduleEvent` porque son
+ * acciones distintas para quien las usa (reagendar vs. designar técnico).
+ */
+export async function assignTechnicians(
+  id: string,
+  technicianIds: string[]
+): Promise<CalendarEvent> {
+  const calendar = getClient();
+  const current = await calendar.events.get({ calendarId: calendarId(), eventId: id });
+  const privateProps = { ...(current.data.extendedProperties?.private ?? {}) };
+  if (technicianIds.length > 0) {
+    privateProps[TECHNICIAN_IDS_KEY] = technicianIds.join(",");
+  } else {
+    delete privateProps[TECHNICIAN_IDS_KEY];
+  }
+  const res = await calendar.events.patch({
+    calendarId: calendarId(),
+    eventId: id,
+    requestBody: { extendedProperties: { private: privateProps } },
+  });
+  const ev = res.data;
+  return {
+    id: ev.id!,
+    title: ev.summary ?? "(sin título)",
+    description: ev.description ?? null,
+    start: ev.start!.dateTime!,
+    end: ev.end!.dateTime!,
+    createdByNea: ev.extendedProperties?.private?.[SOURCE_KEY] !== SOURCE_VALUE,
+    ...readPrivateProps(ev),
   };
 }
