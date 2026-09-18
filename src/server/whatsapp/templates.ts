@@ -162,6 +162,72 @@ export async function createTemplate(
   return inserted[0]!;
 }
 
+/**
+ * Registra en el CRM una plantilla que YA existe y está aprobada en Meta —
+ * creada fuera de aquí, por ejemplo directo en WhatsApp Manager antes de
+ * conectar esta instancia — sin volver a mandarla a aprobación (Meta
+ * rechazaría el nombre por duplicado). Inserta con estado provisional y
+ * sincroniza de inmediato: `syncTemplates` empareja por nombre+idioma y en
+ * el mismo golpe corrige status, category y waTemplateId con la realidad de
+ * Meta, así que el estado "pending" de aquí abajo es solo el instante entre
+ * el insert y ese sync, nunca el estado final visible.
+ */
+export async function adoptTemplate(
+  organizationId: string,
+  input: { name: string; language: string; category: string; body: string }
+): Promise<TemplateRow> {
+  const variableError = validateBodyVariables(input.body);
+  if (variableError) throw new TemplateError("invalid", variableError);
+
+  const creds = await getCredentialsByOrg(organizationId);
+  if (!creds) {
+    throw new TemplateError("not_connected", "Conecta tu número de WhatsApp primero");
+  }
+
+  const name = input.name
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+  if (!name) throw new TemplateError("invalid", "Nombre de plantilla inválido");
+
+  const db = getDb();
+  const inserted = await db
+    .insert(schema.template)
+    .values({
+      id: newId("template"),
+      organizationId,
+      name,
+      language: input.language,
+      category: input.category,
+      body: input.body,
+      status: "pending",
+      waTemplateId: null,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.template.organizationId,
+        schema.template.name,
+        schema.template.language,
+      ],
+      set: {
+        category: input.category,
+        body: input.body,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+  const templateId = inserted[0]!.id;
+
+  await syncTemplates(organizationId);
+
+  const refreshed = await db
+    .select()
+    .from(schema.template)
+    .where(eq(schema.template.id, templateId))
+    .limit(1);
+  return refreshed[0]!;
+}
+
 function mapMetaStatus(
   status: string | undefined
 ): TemplateRow["status"] | null {
