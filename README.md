@@ -93,6 +93,18 @@ cualquier otra conversación.
 | `GET /api/bot/media/{id}` | Descargar un adjunto entrante sin tocar Meta |
 | `POST /api/bot/reset` | Reiniciar una conversación de pruebas |
 
+### 📥 Ingesta de leads externos
+
+Si capturas prospectos fuera del CRM (un formulario del sitio web disparado
+por n8n u otro orquestador) y quieres darlos de alta como contacto + lead sin
+abrir una sesión de navegador, habilita `LEAD_INTAKE_API_KEY`. Es una API key
+separada de `BOT_API_KEY` a propósito — un secreto filtrado en una no
+compromete a la otra.
+
+| Endpoint | Para qué |
+|---|---|
+| `POST /api/external/leads` | Da de alta contacto + lead (idempotente por teléfono) y, si mandas `template`, dispara la plantilla de bienvenida en el mismo golpe — respeta la ventana de 24 h igual que "Iniciar conversación" en la UI |
+
 Los 409 vienen tipados (`ai_paused`, `window_closed`, `sandbox_violation`) para
 que tu bot sepa si callarse, mandar plantilla o rendirse. El guion de pruebas
 está en [`tests/e2e/us-bot-api.md`](tests/e2e/us-bot-api.md).
