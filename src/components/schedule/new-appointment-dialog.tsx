@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TechnicianPicker } from "@/components/schedule/technician-picker";
+import type { AppointmentPrefill } from "@/lib/cita-prefill";
 
 type ContactHit = { id: string; name: string; phone: string | null };
 
@@ -13,13 +14,15 @@ type ContactHit = { id: string; name: string; phone: string | null };
  * (opcional) — así la dirección capturada aquí puede completar su ficha. */
 function ContactSearch({
   contactId,
+  initialName,
   onSelect,
 }: {
   contactId: string | null;
+  initialName?: string;
   onSelect: (contact: ContactHit | null) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [selectedName, setSelectedName] = useState<string | null>(initialName ?? null);
   const [hits, setHits] = useState<ContactHit[]>([]);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -89,18 +92,20 @@ function ContactSearch({
 export function NewAppointmentDialog({
   onClose,
   onCreated,
+  prefill,
 }: {
   onClose: () => void;
   onCreated: () => void;
+  prefill?: AppointmentPrefill;
 }) {
   const today = new Date();
-  const [title, setTitle] = useState("");
-  const [notes, setNotes] = useState("");
-  const [address, setAddress] = useState("");
+  const [title, setTitle] = useState(prefill?.title ?? "");
+  const [notes, setNotes] = useState(prefill?.notes ?? "");
+  const [address, setAddress] = useState(prefill?.address ?? "");
   const [date, setDate] = useState(today.toISOString().slice(0, 10));
   const [time, setTime] = useState("10:00");
-  const [durationMin, setDurationMin] = useState(60);
-  const [contactId, setContactId] = useState<string | null>(null);
+  const [durationMin, setDurationMin] = useState(prefill?.durationMin ?? 60);
+  const [contactId, setContactId] = useState<string | null>(prefill?.contact?.id ?? null);
   const [technicianIds, setTechnicianIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +173,7 @@ export function NewAppointmentDialog({
             <Label>Cliente (opcional)</Label>
             <ContactSearch
               contactId={contactId}
+              initialName={prefill?.contact?.name}
               onSelect={(c) => setContactId(c?.id ?? null)}
             />
           </div>

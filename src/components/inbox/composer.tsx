@@ -14,6 +14,7 @@ import type { ConversationDto, TemplateDto } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatBytes, formatRemaining } from "./helpers";
 import { TemplateSender } from "./template-sender";
+import { resolverCitaEnNea, useCitasPendientes } from "./use-citas-pendientes";
 
 /** 008 — Panel secundario del clip: formulario de ubicación o contacto. */
 type AttachPanel = "location" | "contact" | null;
@@ -51,6 +52,10 @@ export function Composer({
   const [placeName, setPlaceName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  // Interruptor «Confirmar cita al enviar»: tercera vía de confirmación. Nea escribe el
+  // texto de confirmación; si tú escribes el tuyo, se envía ese y la cita igual se confirma.
+  const { citas, recargar: recargarCitas } = useCitasPendientes(conversation.id);
+  const [confirmarId, setConfirmarId] = useState<number | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -97,8 +102,41 @@ export function Composer({
     return data?.message ?? `Error ${res.status}`;
   }
 
+  async function confirmarCita(id: number) {
+    if (sending) return;
+    setSending(true);
+    setError(null);
+    const propio = text.trim();
+    const r = await resolverCitaEnNea(id, "aprobar", { devolverTexto: true });
+    if (r.error) {
+      setSending(false);
+      setError(r.error);
+      void recargarCitas();
+      return;
+    }
+    // Lo que sale al cliente: tu mensaje si lo escribiste; si no, el de Nea. Nunca los dos.
+    const mensaje = propio || r.textoCliente || "";
+    setText("");
+    if (taRef.current) taRef.current.style.height = "auto";
+    setConfirmarId(null);
+    if (mensaje) {
+      const err = await onSend(mensaje);
+      if (err) {
+        setError(`La cita quedó confirmada, pero el mensaje no salió: ${err}`);
+        setText(mensaje);
+      }
+    }
+    setSending(false);
+    void recargarCitas();
+    onSent();
+  }
+
   async function submit() {
     setError(null);
+    if (confirmarId !== null && !file) {
+      await confirmarCita(confirmarId);
+      return;
+    }
 
     if (file) {
       // El adjunto sí espera: sube el archivo y no tiene sentido encolar otro
@@ -216,7 +254,8 @@ export function Composer({
     );
   }
 
-  const canSubmit = file !== null || text.trim().length > 0;
+  const primera = citas[0];
+  const canSubmit = file !== null || text.trim().length > 0 || confirmarId !== null;
 
   return (
     <div className="border-t bg-background px-[18px] pb-3.5 pt-3">
@@ -381,9 +420,33 @@ export function Composer({
             <UserRound className="h-[18px] w-[18px]" strokeWidth={1.7} />
           </button>
         </div>
+        {primera && !file && (
+          <label className="mb-2 flex cursor-pointer items-start gap-2 rounded-md border border-warning-soft bg-warning-tint px-2.5 py-2 text-xs text-warning-text">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={confirmarId === primera.id}
+              onChange={(e) => setConfirmarId(e.target.checked ? primera.id : null)}
+            />
+            <span>
+              <span className="font-medium">
+                Cita #{primera.id} por confirmar · {primera.fecha}
+              </span>
+              <br />
+              Confirmar la cita al enviar
+              {text.trim() ? " (se envía tu mensaje)" : " (Nea escribe el mensaje de confirmación)"}
+            </span>
+          </label>
+        )}
         <textarea
           ref={taRef}
-          placeholder={file ? "Pie del adjunto (opcional)…" : "Escribe una respuesta…"}
+          placeholder={
+            file
+              ? "Pie del adjunto (opcional)…"
+              : confirmarId !== null
+                ? "Deja vacío para enviar la confirmación de Nea, o escribe la tuya…"
+                : "Escribe una respuesta…"
+          }
           value={text}
           rows={1}
           onChange={(e) => {

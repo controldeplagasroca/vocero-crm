@@ -49,6 +49,11 @@ const envSchema = z.object({
   ROCA_OPS_BASE_URL: z.string().url().optional(),
   REMINDERS_API_SECRET: z.string().optional(),
   REMINDERS_CRON_SECRET: z.string().optional(),
+  // Nea (nea-agent): Vocero lista y resuelve las citas por aprobar (botón de
+  // «Aprobar» y el interruptor «Confirmar cita» del chat). NEA_API_SECRET debe
+  // ser el mismo valor que VOCERO_API_SECRET en Nea.
+  NEA_BASE_URL: z.string().url().optional(),
+  NEA_API_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
