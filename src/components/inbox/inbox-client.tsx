@@ -380,6 +380,12 @@ export function InboxClient() {
               conversation={selected}
               refreshKey={detailRev}
               onPatchConversation={patchConversation}
+              onSendToClient={sendText}
+              onCitaChanged={() => {
+                if (selectedIdRef.current)
+                  void refetchMessages(selectedIdRef.current);
+                void refetchConversations();
+              }}
               onClose={() => togglePanel(false)}
             />
           </div>

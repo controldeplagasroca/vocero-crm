@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronRight, Sparkles, UserRound } from "lucide-react";
+import { CalendarPlus, Check, ChevronRight, Sparkles, UserRound } from "lucide-react";
 import type {
   ConversationDto,
   FichaDto,
@@ -14,6 +14,10 @@ import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
+import { NewAppointmentDialog } from "@/components/schedule/new-appointment-dialog";
+import { prefillDesdeFicha } from "@/lib/cita-prefill";
+import { CitasPorAprobar } from "./citas-por-aprobar";
+import { useCitasPendientes } from "./use-citas-pendientes";
 
 const HANDOFF_LABELS: Record<string, string> = {
   cliente: "El cliente pidió un humano",
@@ -27,6 +31,8 @@ export function ContactPanel({
   conversation,
   refreshKey = 0,
   onPatchConversation,
+  onSendToClient,
+  onCitaChanged,
   onClose,
 }: {
   conversation: ConversationDto;
@@ -36,8 +42,12 @@ export function ContactPanel({
     aiEnabled?: boolean;
     reactivate?: boolean;
   }) => Promise<void>;
+  /** Envía un mensaje al cliente como persona (confirmaciones de cita). */
+  onSendToClient: (text: string) => Promise<string | null>;
+  onCitaChanged: () => void;
   onClose: () => void;
 }) {
+  const { citas, recargar: recargarCitas } = useCitasPendientes(conversation.id, refreshKey);
   const [notes, setNotes] = useState("");
   const [ficha, setFicha] = useState<FichaDto>({});
   const [notesLoaded, setNotesLoaded] = useState(false);
@@ -49,6 +59,8 @@ export function ContactPanel({
   // cuando el agente aún no se ha configurado/encendido.
   const [agentEnabled, setAgentEnabled] = useState(false);
   const [aiConfigured, setAiConfigured] = useState(false);
+  const [agendando, setAgendando] = useState(false);
+  const [citaCreada, setCitaCreada] = useState(false);
 
   const contactId = conversation.contact.id;
 
@@ -183,6 +195,24 @@ export function ContactPanel({
             </div>
           </div>
 
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3 w-full"
+            onClick={() => {
+              setCitaCreada(false);
+              setAgendando(true);
+            }}
+          >
+            <CalendarPlus className="mr-1.5 h-4 w-4" strokeWidth={1.7} />
+            Agendar cita
+          </Button>
+          {citaCreada && (
+            <p className="mt-1.5 text-center text-[11px] text-brand-text">
+              Cita agendada ✓ — ya está en la Agenda
+            </p>
+          )}
+
           {conversation.handoffAt && (
             <div className="mt-3 rounded-md border border-warning-soft bg-warning-tint p-3">
               <p className="flex items-center gap-1.5 text-[13px] font-medium text-warning-text">
@@ -264,6 +294,16 @@ export function ContactPanel({
           </div>
         </section>
 
+        {/* Citas que Nea dejó por aprobar: confirmar, proponer otra hora o rechazar */}
+        <CitasPorAprobar
+          citas={citas}
+          onSendToClient={onSendToClient}
+          onChanged={() => {
+            void recargarCitas();
+            onCitaChanged();
+          }}
+        />
+
         {/* Stepper de etapa */}
         {stages.length > 0 && leadId && (
           <section className="border-b p-4">
@@ -339,6 +379,18 @@ export function ContactPanel({
           </Button>
         </section>
       </div>
+
+      {agendando && (
+        <NewAppointmentDialog
+          prefill={prefillDesdeFicha(conversation.contact, ficha)}
+          onClose={() => setAgendando(false)}
+          onCreated={() => {
+            setAgendando(false);
+            setCitaCreada(true);
+            void refreshLive();
+          }}
+        />
+      )}
     </div>
   );
 }
