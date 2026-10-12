@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { getEnv, isCalendarConfigured } from "@/lib/env";
+import { descripcionConTecnico, tituloConTecnico } from "@/lib/technician-label";
 
 /**
  * Agendamiento: lee y escribe sobre el MISMO Google Calendar que ya usa Nea
@@ -217,4 +218,34 @@ export async function assignTechnicians(
     createdByNea: ev.extendedProperties?.private?.[SOURCE_KEY] !== SOURCE_VALUE,
     ...readPrivateProps(ev),
   };
+}
+
+/**
+ * Deja escrito en el evento el técnico que asignó ROCA OPS: su nombre visible en
+ * el título y en la primera línea de la descripción, un color propio y, si existe
+ * en Vocero, su id (propiedad oculta `technicianIds`, que lee la Agenda).
+ * `null` quita todo eso. No toca el horario ni el bloque de datos de OPS.
+ */
+export async function etiquetarTecnico(
+  id: string,
+  tecnico: { technicianId: string | null; name: string; colorId: string | null } | null
+): Promise<void> {
+  const calendar = getClient();
+  const current = await calendar.events.get({ calendarId: calendarId(), eventId: id });
+  const privateProps = { ...(current.data.extendedProperties?.private ?? {}) };
+  if (tecnico?.technicianId) {
+    privateProps[TECHNICIAN_IDS_KEY] = tecnico.technicianId;
+  } else {
+    delete privateProps[TECHNICIAN_IDS_KEY];
+  }
+  await calendar.events.patch({
+    calendarId: calendarId(),
+    eventId: id,
+    requestBody: {
+      summary: tituloConTecnico(current.data.summary ?? "", tecnico?.name ?? null),
+      description: descripcionConTecnico(current.data.description ?? null, tecnico?.name ?? null),
+      colorId: tecnico?.colorId ?? null,
+      extendedProperties: { private: privateProps },
+    },
+  });
 }
